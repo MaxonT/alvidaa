@@ -1595,6 +1595,47 @@ test('first frame: the dock paints placeholder tiles at final geometry before th
 });
 
 
+test('first frame: saved favorites hold their slots before the payload, so the tiles after them do not shift', () => {
+  const f = setup({ storage: { alvidaa_favorites: ['1', '2'] } }), v = f.instance;
+  let deliver;
+  f.root.AlvidaaNativePlatform = (_sdk, callback) => ({
+    start() { deliver = callback; },
+    stop() {},
+    launchApp() { f.calls.push(['launch']); }, changeSource() {},
+    openSettings() { f.calls.push(['settings']); }
+  });
+  v.start();
+  const draw = () => f.component.render.call(v, (tag, data, children) => ({ tag, data, children }));
+  const slots = flat => flat.filter(n => n.data && n.data.attrs &&
+    n.data.attrs.role === 'button' && n.data.style.top === '1794px');
+  const pending = flat => flat.filter(n => n.data && n.data.attrs &&
+    n.data.attrs['data-favorite-placeholder']);
+
+  // Before the payload: two pinned slots plus Apps, Settings and Launcher.
+  let flat = flatten(draw());
+  assert.equal(pending(flat).length, 2, 'one placeholder per saved favorite');
+  const before = slots(flat).map(n => n.data.style.left);
+  assert.equal(before.length, 5);
+
+  // A key on a placeholder must not launch anything or open TV settings.
+  v.zone = 'apps'; v.app = 0;
+  v.activate();
+  assert.deepEqual(f.calls.filter(c => c[0] === 'launch' || c[0] === 'settings'), []);
+
+  // The payload lands: real favorites replace the placeholders and the later
+  // tiles (Apps, Settings, Launcher) stay in the same columns.
+  deliver({
+    apps: [{ appId: '1', appName: 'Netflix' }, { appId: '2', appName: 'Plex' }],
+    sources: [{ sourceId: 0, name: 'TV', is_signal: '1' }],
+    errors: [], waiting: false
+  });
+  flat = flatten(draw());
+  assert.equal(pending(flat).length, 0, 'placeholders unmount with the payload');
+  assert.deepEqual(slots(flat).map(n => n.data.style.left), before);
+  v.stop();
+});
+
+
 // ---- idle screen (issue #58) -------------------------------------------------
 
 function clockTick(f) {
