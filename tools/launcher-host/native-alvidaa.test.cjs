@@ -1622,6 +1622,13 @@ test('first frame: saved favorites hold their slots before the payload, so the t
   v.activate();
   assert.deepEqual(f.calls.filter(c => c[0] === 'launch' || c[0] === 'settings'), []);
 
+  // The adapter's first synchronous refresh may be empty while the app
+  // service retries. That is not a resolved app list and must not shift doors.
+  deliver({ apps: [], sources: [], errors: ['Apps: not ready'], waiting: true, retrying: true });
+  flat = flatten(draw());
+  assert.equal(pending(flat).length, 2, 'keep saved slots while native app service retries');
+  assert.deepEqual(slots(flat).map(n => n.data.style.left), before);
+
   // The payload lands: real favorites replace the placeholders and the later
   // tiles (Apps, Settings, Launcher) stay in the same columns.
   deliver({
