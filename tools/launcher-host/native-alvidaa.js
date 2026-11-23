@@ -301,6 +301,9 @@
           this._platform = root.AlvidaaNativePlatform(sdk, function (data) {
             var firstPayload = !vm._payloadReceived;
             vm._payloadReceived = true;
+            // The native adapter can first emit an empty list while retrying.
+            // Keep saved favorite slots until apps load or retries finish.
+            vm._appsResolved = (Array.isArray(data.apps) && data.apps.length > 0) || !data.retrying;
             vm._lastData = data;
             vm.apps = vm.sortRecent(vm.filterApps(data.apps));
             vm.sources = data.sources.filter(function (input) {
@@ -371,6 +374,7 @@
         stop: function () {
           this._running = false;
           this._payloadReceived = false;
+          this._appsResolved = false;
           if (this._platform) this._platform.stop();
           clearInterval(this._clock);
           if (this._autoSwitchTimer) {
@@ -507,7 +511,7 @@
                   break;
                 }
               }
-              if (!app && !this._payloadReceived && !this.apps.length) {
+              if (!app && !this._appsResolved && !this.apps.length) {
                 // First frame (issue #54): the saved pins are known before the
                 // platform callback lands. Hold their slots so the tiles after
                 // them do not shift when the real favorites arrive.
